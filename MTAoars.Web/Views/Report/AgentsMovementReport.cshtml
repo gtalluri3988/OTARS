@@ -1,0 +1,69 @@
+@using MTAoars.Utilities.Mvc
+@model MTAoars.ViewModels.Reports.AgentsMovementReportViewModel
+
+<table class="mta-panel" id="parameters-table">
+    <caption>Agents Movement Report Parameters</caption>
+    <tr>
+        <th>From (Month)</th>
+        <td>
+            @Html.BindDropDownListFor(model => model.FromMonth, Url.Action("AllMonths", "Lookup"), required: true)
+        </td>
+        <th>From (Year)</th>
+        <td>
+            @Html.BindDropDownListFor(model => model.FromYear, Url.Action("Recent6Years", "Lookup"), required: true)
+        </td>
+    </tr>
+    <tr>
+        <th>To (Month)</th>
+        <td>
+            @Html.BindDropDownListFor(model => model.ToMonth, Url.Action("AllMonths", "Lookup"), required: true)
+        </td>
+        <th>To (Year)</th>
+        <td>
+            @Html.BindDropDownListFor(model => model.ToYear, Url.Action("Recent6Years", "Lookup"), required: true)
+        </td>
+        <th>
+            <button class="k-button" id="fetch-button"><span class="k-icon k-i-search"></span>Fetch</button>
+        </th>
+    </tr>
+</table>
+<div id="report-div"></div>
+<iframe id="report" class="mta-report-frame"></iframe>
+
+<script type="text/javascript">
+
+    $(function () {
+        addBreadCrumb("Agents Movement Report", "#", 2);
+
+        var viewModel = kendo.observable(@Html.Raw(@Json.Encode(Model)));
+        kendo.bind($("#parameters-table"), viewModel);
+
+        function monthSpanInclusive(fy, fm, ty, tm) {
+            return (ty - fy) * 12 + (tm - fm) + 1;
+        }
+
+        function enforceTwelveMonthWindow() {
+            var fy = parseInt(viewModel.get("FromYear"), 10);
+            var fm = parseInt(viewModel.get("FromMonth"), 10);
+            var ty = parseInt(viewModel.get("ToYear"), 10);
+            var tm = parseInt(viewModel.get("ToMonth"), 10);
+            if (isNaN(fy) || isNaN(fm) || isNaN(ty) || isNaN(tm)) return true;
+            var span = monthSpanInclusive(fy, fm, ty, tm);
+            if (span > 12) {
+                alert("The selected period cannot exceed 12 months. Please adjust From / To.");
+                return false;
+            }
+            if (span < 1) {
+                alert("The To period must be on or after the From period.");
+                return false;
+            }
+            return true;
+        }
+
+        $("#fetch-button").click(function () {
+            if (!enforceTwelveMonthWindow()) return;
+            reportPost("#parameters-table", "@Url.Content("~/Rdls/Display.aspx?report=AgentsMovementReport")", viewModel, "#report");
+        });
+
+    });
+</script>
