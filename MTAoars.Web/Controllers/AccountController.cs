@@ -12,6 +12,7 @@ using MTAoars.ViewModels.Shared;
 using MTAoars.Utilities.Config;
 using System.Security.Claims;
 using MTAoars.Utilities.Extensions;
+using System.Web.Security;
 
 namespace MTAoars.Web.Controllers
 {
@@ -42,6 +43,8 @@ namespace MTAoars.Web.Controllers
             {
                 var sub = (User.Identity as ClaimsIdentity).Claims.FirstOrDefault(i => i.Type == "sub").Value;
                 identity = userService.Get(sub);
+                // Finding 12: record this login and invalidate previous active login records.
+                identity.UserLoginID = userService.SaveLoginDetail(identity.UserID, Request.UserHostAddress);
                 dataProvider.Register(GlobalConstants.CurrentIdentity, identity);
             }
 
@@ -71,6 +74,8 @@ namespace MTAoars.Web.Controllers
                 return Json(output);
             }
             var identity = userService.Get(model.UserName);
+            // Finding 12: record this login and invalidate previous active login records.
+            identity.UserLoginID = userService.SaveLoginDetail(identity.UserID, Request.UserHostAddress);
             dataProvider.Register(GlobalConstants.CurrentIdentity, identity);
             output.RedirectUrl = Url.Action("Index", "Home");
             return Json(output);
@@ -80,11 +85,30 @@ namespace MTAoars.Web.Controllers
         {
             var identity = dataProvider.Get<Identity>(GlobalConstants.CurrentIdentity);
             dataProvider.Remove(GlobalConstants.CurrentIdentity);
-            dataProvider.Register<Identity>(GlobalConstants.CurrentIdentity, null);
 
-            userService.SaveLogoutDetail(identity.UserLoginID);
+            if (identity != null && identity.UserLoginID > 0)
+                userService.SaveLogoutDetail(identity.UserLoginID);
+
+            // Finding 5: clear authentication/session state on the server during logout.
+            FormsAuthentication.SignOut();
             Session.Clear();
             Session.Abandon();
+
+            if (Request.Cookies["ASP.NET_SessionId"] != null)
+            {
+                var sessionCookie = new HttpCookie("ASP.NET_SessionId", string.Empty);
+                sessionCookie.Expires = DateTime.UtcNow.AddDays(-1);
+                Response.Cookies.Add(sessionCookie);
+            }
+
+            // Finding 6: prevent Back-button access to cached authenticated pages after logout.
+            Response.Cache.SetCacheability(HttpCacheability.NoCache);
+            Response.Cache.SetExpires(DateTime.UtcNow.AddDays(-1));
+            Response.Cache.SetNoStore();
+            Response.Cache.SetRevalidation(HttpCacheRevalidation.AllCaches);
+            Response.Headers.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            Response.Headers.Set("Pragma", "no-cache");
+            Response.Headers.Set("Expires", "Thu, 01 Jan 1970 00:00:00 GMT");
             //return View("LogOn", new LogOnViewModel());
             //return Redirect("/home.aspx");
             return Redirect(config.SSOUrl);

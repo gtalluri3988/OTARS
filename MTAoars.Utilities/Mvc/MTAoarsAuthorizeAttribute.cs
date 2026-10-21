@@ -24,7 +24,15 @@ namespace MTAoars.Utilities.Mvc
         public override void OnAuthorization(AuthorizationContext filterContext)
         {
             var dataProvider = ObjectContainer.Container.Resolve<IScopeDataProvider>();
-            if (!dataProvider.HasRegistered(GlobalConstants.CurrentIdentity) || !HasPermitted(filterContext))
+            // Finding 12: HasRegistered also verifies this is still the user's active session.
+            if (!dataProvider.HasRegistered(GlobalConstants.CurrentIdentity))
+            {
+                var routeValues = new RouteValueDictionary(new { controller = "Account", action = "LogOn" });
+                filterContext.Result = new RedirectToRouteResult(routeValues);
+                return;
+            }
+
+            if (!HasPermitted(filterContext))
             {
                 var routeValues = new RouteValueDictionary(new { controller = "Account", action = "Unauthorized" });
                 filterContext.Result = new RedirectToRouteResult(routeValues);

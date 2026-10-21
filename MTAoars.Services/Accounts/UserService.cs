@@ -38,6 +38,12 @@ namespace MTAoars.Services.Accounts {
         }
 
         public long SaveLoginDetail(long userId, string hostIP) {
+            // Finding 12: close previous active login records when a new login succeeds.
+            var now = DateTime.Now;
+            foreach (var activeLogin in userLoginRepository.GetAll().Where(i => i.UserID == userId && i.LogoutTime == null)) {
+                activeLogin.LogoutTime = now;
+            }
+
             var userLogin = new UserLogin { UserID = userId, HostIP = hostIP, LoginTime = DateTime.Now };
             userLoginRepository.Save(userLogin);
             userLoginRepository.SaveChanges();

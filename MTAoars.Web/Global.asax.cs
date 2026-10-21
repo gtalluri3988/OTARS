@@ -29,7 +29,7 @@ namespace MTAoars.Web {
         private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
         public static void RegisterGlobalFilters(GlobalFilterCollection filters)
         {
-            //filters.Add(new HandleErrorAttribute());
+            filters.Add(new HandleErrorAttribute());
             filters.Add(new NoCacheAttribute());
         }
 
@@ -48,12 +48,14 @@ namespace MTAoars.Web {
         }
         protected void Application_BeginRequest(Object sender, EventArgs e)
         {
+            // Finding 6: apply no-cache headers before MVC/action filters run.
             Response.Cache.SetCacheability(HttpCacheability.NoCache);
             Response.Cache.SetNoStore();
             Response.Cache.SetExpires(DateTime.UtcNow.AddMinutes(-1));
             Response.Cache.SetRevalidation(HttpCacheRevalidation.AllCaches);
-            Response.Headers.Add("Pragma", "no-cache");
-            Response.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            Response.Headers.Set("Pragma", "no-cache");
+            Response.Headers.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            Response.Headers.Set("Expires", "Thu, 01 Jan 1970 00:00:00 GMT");
         }
         protected void Application_Start()
         {
@@ -138,6 +140,16 @@ namespace MTAoars.Web {
             Exception exception = Server.GetLastError();
             if (exception != null)
                 logger.Error(exception);
+
+            if (Context == null || Request == null || Request.Path.IndexOf("/Home/Error", StringComparison.OrdinalIgnoreCase) >= 0)
+                return;
+
+            // Findings 2-4: log details server-side, then redirect users to a generic error page.
+            Server.ClearError();
+            Response.Clear();
+            Response.StatusCode = 500;
+            Response.TrySkipIisCustomErrors = false;
+            Response.Redirect("~/Home/Error?responseCode=500");
         }
 
     }// class
